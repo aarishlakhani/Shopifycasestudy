@@ -1,4 +1,4 @@
-# Recreate Existing Design
+# Shopify
 
 A React + Vite app exported from Figma. Original design: [Figma file](https://www.figma.com/design/ZhAaodiIZK6PIeGP4MQ5ck/Recreate-Existing-Design).
 
