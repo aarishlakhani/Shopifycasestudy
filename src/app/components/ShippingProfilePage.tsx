@@ -67,11 +67,58 @@ export function ShippingProfilePage() {
     }
   ]);
 
-  const handleWizardComplete = (config: any) => {
-    // Update zones based on wizard recommendations
-    const updatedZones = [...zones];
-    updatedZones[0].shippingOptions[0].price = `$${config.recommendations.flatRate}.00`;
-    updatedZones[0].shippingOptions[0].minOrderAmount = `$${config.recommendations.freeShippingThreshold}.00`;
+  const handleWizardComplete = (config: {
+    shippingRegion: string;
+    recommendations: {
+      flatRate: number;
+      internationalFlatRate: number;
+      freeShippingThreshold: number;
+      transitTime: string;
+    };
+  }) => {
+    const { shippingRegion, recommendations } = config;
+
+    const updatedZones = zones.map((zone) => {
+      if (zone.id === 'domestic') {
+        return {
+          ...zone,
+          shippingOptions: zone.shippingOptions.map((option) =>
+            option.id === 'standard'
+              ? {
+                  ...option,
+                  price: `$${recommendations.flatRate}.00`,
+                  minOrderAmount: `$${recommendations.freeShippingThreshold}.00`,
+                  transitTime: recommendations.transitTime,
+                  freeShipping: true,
+                }
+              : option
+          ),
+        };
+      }
+
+      if (
+        zone.id === 'international' &&
+        (shippingRegion === 'international' || shippingRegion === 'north-america')
+      ) {
+        return {
+          ...zone,
+          shippingOptions: zone.shippingOptions.map((option) =>
+            option.id === 'intl-standard'
+              ? {
+                  ...option,
+                  price: `$${recommendations.internationalFlatRate}.00`,
+                  transitTime: recommendations.transitTime,
+                  freeShipping: undefined,
+                  minOrderAmount: undefined,
+                }
+              : option
+          ),
+        };
+      }
+
+      return zone;
+    });
+
     setZones(updatedZones);
     setWizardCompleted(true);
     setShowWizard(false);

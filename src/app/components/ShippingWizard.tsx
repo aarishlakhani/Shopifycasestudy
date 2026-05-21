@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, ArrowLeft, CheckCircle2, TrendingUp, Package, MapPin, DollarSign, AlertTriangle, Info, Shield } from 'lucide-react';
 
 interface WizardStep {
@@ -60,6 +60,7 @@ export function ShippingWizard({ onComplete, onClose }: ShippingWizardProps) {
   // Calculate recommendations based on inputs
   const getRecommendations = () => {
     let flatRate = 10;
+    let internationalFlatRate = 35;
     let freeShippingThreshold = 60;
     let transitTime = '3 to 5 business days';
 
@@ -67,23 +68,38 @@ export function ShippingWizard({ onComplete, onClose }: ShippingWizardProps) {
     if (priceRange === 'under-20') {
       flatRate = 7;
       freeShippingThreshold = 40;
+      internationalFlatRate = 25;
     } else if (priceRange === '20-50') {
       flatRate = 10;
       freeShippingThreshold = 60;
+      internationalFlatRate = 35;
     } else if (priceRange === '50-100') {
       flatRate = 12;
       freeShippingThreshold = 75;
+      internationalFlatRate = 45;
     } else if (priceRange === 'over-100') {
       flatRate = 15;
       freeShippingThreshold = 100;
+      internationalFlatRate = 55;
     }
 
     // Adjust based on weight
     if (productWeight === 'heavy') {
       flatRate += 5;
+      internationalFlatRate += 10;
+    } else if (productWeight === 'medium') {
+      internationalFlatRate += 5;
     }
 
-    return { flatRate, freeShippingThreshold, transitTime };
+    // Regional adjustments for international / North America
+    if (shippingRegion === 'north-america') {
+      internationalFlatRate = flatRate + 8;
+    } else if (shippingRegion === 'international') {
+      internationalFlatRate = Math.max(internationalFlatRate, flatRate + 20);
+      transitTime = '7 to 14 business days';
+    }
+
+    return { flatRate, internationalFlatRate, freeShippingThreshold, transitTime };
   };
 
   const getBenchmarkData = () => {
@@ -500,22 +516,49 @@ export function ShippingWizard({ onComplete, onClose }: ShippingWizardProps) {
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center gap-1.5">
                     <Package className="w-4 h-4 text-gray-600" />
-                    <span className="text-sm font-medium">Shipping rate</span>
+                    <span className="text-sm font-medium">
+                      {shippingRegion === 'international' || shippingRegion === 'north-america'
+                        ? 'International shipping rate'
+                        : 'Domestic shipping rate'}
+                    </span>
                   </div>
-                  <span className="text-xl font-bold text-blue-600">${recommendations.flatRate}</span>
+                  <span className="text-xl font-bold text-blue-600">
+                    ${shippingRegion === 'international' || shippingRegion === 'north-america'
+                      ? recommendations.internationalFlatRate
+                      : recommendations.flatRate}
+                  </span>
                 </div>
-                <div className="text-xs text-gray-600 mb-2">Flat rate for {shippingRegion === 'domestic' ? 'domestic' : shippingRegion} shipping</div>
+                <div className="text-xs text-gray-600 mb-2">
+                  Flat rate for{' '}
+                  {shippingRegion === 'domestic'
+                    ? 'domestic'
+                    : shippingRegion === 'north-america'
+                    ? 'North America'
+                    : 'international'}{' '}
+                  shipping
+                </div>
 
                 {/* Real-time Impact Preview */}
                 <div className="bg-gray-50 rounded-lg p-2 space-y-1">
                   <div className="text-xs font-medium text-gray-700 mb-1">Impact Preview</div>
                   <div className="flex items-center justify-between text-xs">
                     <span className="text-gray-600">Estimated shipping cost:</span>
-                    <span className="font-medium text-green-600">$7-9</span>
+                    <span className="font-medium text-green-600">
+                      {shippingRegion === 'international' || shippingRegion === 'north-america'
+                        ? `$${recommendations.internationalFlatRate - 12}-${recommendations.internationalFlatRate - 8}`
+                        : '$7-9'}
+                    </span>
                   </div>
                   <div className="flex items-center justify-between text-xs">
                     <span className="text-gray-600">Your profit per order:</span>
-                    <span className="font-medium text-green-600">${recommendations.flatRate - 8} - ${recommendations.flatRate - 7}</span>
+                    <span className="font-medium text-green-600">
+                      ${(shippingRegion === 'international' || shippingRegion === 'north-america'
+                        ? recommendations.internationalFlatRate
+                        : recommendations.flatRate) - 8} - $
+                      {(shippingRegion === 'international' || shippingRegion === 'north-america'
+                        ? recommendations.internationalFlatRate
+                        : recommendations.flatRate) - 7}
+                    </span>
                   </div>
                   <div className="flex items-center justify-between text-xs">
                     <span className="text-gray-600">Competitive position:</span>
@@ -524,6 +567,7 @@ export function ShippingWizard({ onComplete, onClose }: ShippingWizardProps) {
                 </div>
               </div>
 
+              {(shippingRegion === 'domestic' || shippingRegion === 'north-america') && (
               <div className="border border-gray-200 rounded-lg p-2.5">
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center gap-1.5">
@@ -532,7 +576,7 @@ export function ShippingWizard({ onComplete, onClose }: ShippingWizardProps) {
                   </div>
                   <span className="text-xl font-bold text-blue-600">${recommendations.freeShippingThreshold}</span>
                 </div>
-                <div className="text-xs text-gray-600 mb-2">Orders above this amount ship free</div>
+                <div className="text-xs text-gray-600 mb-2">Orders above this amount ship free (domestic)</div>
 
                 <div className="bg-gray-50 rounded-lg p-2 space-y-1">
                   <div className="text-xs font-medium text-gray-700 mb-1">Why this works</div>
@@ -549,6 +593,15 @@ export function ShippingWizard({ onComplete, onClose }: ShippingWizardProps) {
                   </div>
                 </div>
               </div>
+              )}
+
+              {shippingRegion === 'international' && (
+                <div className="border border-gray-200 rounded-lg p-2.5 bg-gray-50">
+                  <div className="text-xs text-gray-600">
+                    International orders use flat rates only — free shipping thresholds typically apply to domestic zones.
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-2">
