@@ -27,8 +27,23 @@ interface ShippingZone {
 export function ShippingProfilePage() {
   const [showWizard, setShowWizard] = useState(true);
   const [wizardCompleted, setWizardCompleted] = useState(false);
+  const [configuredZones, setConfiguredZones] = useState<Set<'domestic' | 'international'>>(new Set());
   const [editingZone, setEditingZone] = useState<string | null>(null);
   const [editingOption, setEditingOption] = useState<{ zoneId: string; optionId: string | null } | null>(null);
+
+  const hasPartialWizardSetup =
+    wizardCompleted && configuredZones.size > 0 && configuredZones.size < 2;
+
+  const isZoneConfiguredByWizard = (zoneId: 'domestic' | 'international') => {
+    if (!wizardCompleted || configuredZones.size === 0) return true;
+    return configuredZones.has(zoneId);
+  };
+
+  const missingZone: 'domestic' | 'international' | null = hasPartialWizardSetup
+    ? configuredZones.has('domestic')
+      ? 'international'
+      : 'domestic'
+    : null;
 
   const [zones, setZones] = useState<ShippingZone[]>([
     {
@@ -74,12 +89,15 @@ export function ShippingProfilePage() {
       internationalFlatRate: number;
       freeShippingThreshold: number;
       transitTime: string;
+      internationalTransitTime: string;
     };
   }) => {
     const { shippingRegion, recommendations } = config;
+    const updateDomestic = shippingRegion === 'domestic' || shippingRegion === 'both';
+    const updateInternational = shippingRegion === 'international' || shippingRegion === 'both';
 
     const updatedZones = zones.map((zone) => {
-      if (zone.id === 'domestic') {
+      if (zone.id === 'domestic' && updateDomestic) {
         return {
           ...zone,
           shippingOptions: zone.shippingOptions.map((option) =>
@@ -96,10 +114,7 @@ export function ShippingProfilePage() {
         };
       }
 
-      if (
-        zone.id === 'international' &&
-        (shippingRegion === 'international' || shippingRegion === 'north-america')
-      ) {
+      if (zone.id === 'international' && updateInternational) {
         return {
           ...zone,
           shippingOptions: zone.shippingOptions.map((option) =>
@@ -107,7 +122,7 @@ export function ShippingProfilePage() {
               ? {
                   ...option,
                   price: `$${recommendations.internationalFlatRate}.00`,
-                  transitTime: recommendations.transitTime,
+                  transitTime: recommendations.internationalTransitTime,
                   freeShipping: undefined,
                   minOrderAmount: undefined,
                 }
@@ -120,6 +135,12 @@ export function ShippingProfilePage() {
     });
 
     setZones(updatedZones);
+    setConfiguredZones((prev) => {
+      const next = new Set(prev);
+      if (updateDomestic) next.add('domestic');
+      if (updateInternational) next.add('international');
+      return next;
+    });
     setWizardCompleted(true);
     setShowWizard(false);
   };
@@ -144,6 +165,33 @@ export function ShippingProfilePage() {
             </button>
           )}
         </div>
+
+        {/* Partial setup notice (wizard completed for one zone only) */}
+        {missingZone && (
+          <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-6 flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <p className="font-medium text-gray-900 mb-1">
+                {missingZone === 'international'
+                  ? 'International shipping is not set up'
+                  : 'Domestic shipping is not set up'}
+              </p>
+              <p className="text-sm text-gray-700 mb-3">
+                {missingZone === 'international'
+                  ? 'You configured domestic rates in the setup wizard. International zones still use default rates until you complete setup.'
+                  : 'You configured international rates in the setup wizard. Domestic zones still use default rates until you complete setup.'}
+              </p>
+              <button
+                onClick={() => setShowWizard(true)}
+                className="text-sm font-medium text-blue-600 hover:text-blue-700"
+              >
+                {missingZone === 'international'
+                  ? 'Set up international shipping'
+                  : 'Set up domestic shipping'}
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Wizard Banner (if not completed) */}
         {!wizardCompleted && (
@@ -211,9 +259,11 @@ export function ShippingProfilePage() {
           {/* Shipping Zones */}
           <h3 className="mb-4">Shipping zones</h3>
 
-          {zones.map((zone) => (
+          {zones.map((zone) => {
+            const zoneConfigured = isZoneConfiguredByWizard(zone.id as 'domestic' | 'international');
+            return (
             <div key={zone.id} className="mb-4">
-              <div className="border border-gray-300 rounded-lg">
+              <div className={`border rounded-lg ${zoneConfigured ? 'border-gray-300' : 'border-amber-300'}`}>
                 {/* Zone Header */}
                 <div className="flex items-center justify-between p-4 border-b border-gray-200">
                   <div className="flex items-center gap-3">
@@ -225,7 +275,14 @@ export function ShippingProfilePage() {
                       <Truck className="w-5 h-5 text-gray-600" />
                     )}
                     <div>
-                      <div className="font-medium">{zone.name}</div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium">{zone.name}</span>
+                        {!zoneConfigured && (
+                          <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">
+                            Not set up
+                          </span>
+                        )}
+                      </div>
                       <div className="text-sm text-gray-600">{zone.description}</div>
                     </div>
                   </div>
@@ -236,6 +293,25 @@ export function ShippingProfilePage() {
                     <MoreVertical className="w-5 h-5 text-gray-600" />
                   </button>
                 </div>
+
+                {/* Not configured via wizard */}
+                {!zoneConfigured && (
+                  <div className="bg-amber-50 border-b border-amber-200 p-4 flex items-start gap-2">
+                    <AlertCircle className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
+                    <div className="text-sm text-gray-800">
+                      <p className="mb-2">
+                        This zone was not included in your setup wizard. Rates below may not reflect your business.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => setShowWizard(true)}
+                        className="font-medium text-blue-600 hover:text-blue-700"
+                      >
+                        Set up {zone.name.toLowerCase()} shipping
+                      </button>
+                    </div>
+                  </div>
+                )}
 
                 {/* Warning */}
                 {zone.warning && (
@@ -287,7 +363,8 @@ export function ShippingProfilePage() {
                 </div>
               </div>
             </div>
-          ))}
+          );
+          })}
 
           <button className="flex items-center gap-2 text-blue-600 hover:text-blue-700 mt-4">
             <Plus className="w-4 h-4" />
